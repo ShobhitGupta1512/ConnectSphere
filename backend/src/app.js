@@ -9,6 +9,7 @@ import { connectToServer } from "./controllers/socketManager.js";
 import { connectDB } from "./config/db.js";
 import userRoutes from "./routes/userRoutes.js";
 import postRoutes from "./routes/postRoutes.js";
+import meetingRoutes from "./routes/meeting.routes.js";
 
 dotenv.config();
 
@@ -31,7 +32,7 @@ app.use(cookieParser());
 
 app.use("/api/v1/users", userRoutes);
 app.use("/api/v1/posts", postRoutes);
-
+app.use("/api/v1/meetings", meetingRoutes);
 app.get("/home", (req, res) => {
   res.json({ Hello: "World" });
 });
