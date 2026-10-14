@@ -1,10 +1,75 @@
-@import "tailwindcss";
-*{
-  margin : 0;
-  padding: 0;
-  box-sizing: border-box;
 
+@import "tailwindcss";
+
+/* ========================================
+   1. Global Reset
+======================================== */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
 }
+
+html,
+body,
+#root {
+  min-height: 100%;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+button:disabled {
+  cursor: not-allowed;
+}
+
+/* ========================================
+   2. Login & Registration Pages
+   Tailwind handles the page-specific UI.
+======================================== */
+
+.login-page h1,
+.register-page h1 {
+  margin: 0;
+}
+
+.login-page form,
+.register-page form {
+  width: 100%;
+}
+
+/* Keep inputs consistent if custom CSS is needed */
+.login-page input,
+.register-page input {
+  min-width: 0;
+}
+
+/* ========================================
+   3. Landing Page Hero
+======================================== */
 
 .hero {
   width: min(900px, 90%);
@@ -40,7 +105,6 @@
   border-radius: 12px;
   color: white;
   font-weight: 600;
-  cursor: pointer;
   background: linear-gradient(110deg, #7c3aed, #2563eb);
   transition: transform 200ms ease, box-shadow 200ms ease;
 }
@@ -51,9 +115,46 @@
   box-shadow: 0 8px 30px rgba(124, 58, 237, 0.3);
 }
 
+/* ========================================
+   4. Navigation Bar
+======================================== */
+
 .navbar {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 20px;
   padding: 24px 6%;
+}
+
+/* ========================================
+   5. Responsive Adjustments
+======================================== */
+
+@media (max-width: 640px) {
+  .hero {
+    padding: 90px 0 64px;
+  }
+
+  .navbar {
+    padding: 18px 5%;
+  }
+}
+
+/* ========================================
+   6. Accessibility
+======================================== */
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
 }
