@@ -1,5 +1,7 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import useMediaStream from "../hooks/useMediaStream";
+// import useMeetingSocket from "../hooks/useMeetingSocket";
 
 function Icon({ name, size = 20 }) {
   const paths = {
@@ -68,11 +70,30 @@ function Icon({ name, size = 20 }) {
 
 function MeetingRoom() {
   const { meetingCode } = useParams();
+  
   const navigate = useNavigate();
+  const videoRef = useRef(null);
+  
+    
 
-  const [micOn, setMicOn] = useState(true);
-  const [cameraOn, setCameraOn] = useState(false);
+  const {
+    stream,
+    cameraOn,
+    micOn,
+    error,
+    startCamera,
+    stopCamera,
+    startMicrophone,
+    stopMicrophone,
+  } = useMediaStream();
+
   const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    if (videoRef.current) {
+      videoRef.current.srcObject = stream;
+    }
+  }, [stream]);
 
   const copyMeetingCode = async () => {
     try {
@@ -86,12 +107,12 @@ function MeetingRoom() {
 
   return (
     <div className="min-h-screen bg-[#090d16] text-white">
-      {/* Header */}
       <header className="flex flex-wrap items-center justify-between gap-4 border-b border-white/10 px-5 py-4 md:px-8">
         <div className="flex items-center gap-3">
           <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-500 text-lg font-bold">
             C
           </div>
+
           <div>
             <h1 className="text-lg font-semibold tracking-tight">
               Connect<span className="text-indigo-400">Sphere</span>
@@ -105,17 +126,18 @@ function MeetingRoom() {
             <span className="h-2 w-2 rounded-full bg-emerald-400" />
             <span className="text-xs text-slate-300">Meeting ready</span>
           </div>
+
           <button
+            type="button"
             onClick={copyMeetingCode}
             className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2.5 text-sm transition hover:bg-white/10"
           >
             <Icon name="copy" size={16} />
-            <span>{copied ? "Copied!" : "Copy code"}</span>
+            {copied ? "Copied!" : "Copy code"}
           </button>
         </div>
       </header>
 
-      {/* Main content */}
       <main className="mx-auto flex w-full max-w-[1500px] flex-col gap-6 px-4 py-6 md:px-8 md:py-8">
         <section className="flex flex-wrap items-end justify-between gap-4">
           <div>
@@ -136,24 +158,24 @@ function MeetingRoom() {
           </div>
         </section>
 
-        {/* Participant grid */}
         <section className="grid min-h-[360px] grid-cols-1 gap-4 sm:grid-cols-2">
           {/* Local participant */}
           <div className="relative flex min-h-[250px] items-center justify-center overflow-hidden rounded-2xl border border-indigo-400/20 bg-gradient-to-br from-indigo-950 via-[#151b30] to-[#101522]">
             {cameraOn ? (
-              <div className="flex flex-col items-center gap-3 text-center">
-                <div className="flex h-24 w-24 items-center justify-center rounded-full bg-indigo-500/20 text-3xl font-semibold text-indigo-200 ring-1 ring-indigo-300/30">
-                  You
-                </div>
-                <p className="text-sm text-slate-300">
-                  Camera UI enabled
-                </p>
-              </div>
+              <video
+                ref={videoRef}
+                autoPlay
+                muted
+                playsInline
+                aria-label="Your camera preview"
+                className="absolute inset-0 h-full w-full object-cover"
+              />
             ) : (
               <div className="flex flex-col items-center gap-4 text-center">
                 <div className="flex h-24 w-24 items-center justify-center rounded-full bg-indigo-500/20 text-3xl font-semibold text-indigo-200 ring-1 ring-indigo-300/30">
                   Y
                 </div>
+
                 <div>
                   <p className="font-medium">You</p>
                   <p className="mt-1 text-xs text-slate-400">
@@ -163,24 +185,29 @@ function MeetingRoom() {
               </div>
             )}
 
-            <div className="absolute left-4 top-4 rounded-lg border border-white/10 bg-black/30 px-3 py-1.5 text-xs text-slate-200">
+            <div className="absolute left-4 top-4 rounded-lg border border-white/10 bg-black/50 px-3 py-1.5 text-xs text-slate-200">
               You
             </div>
-            <div className="absolute bottom-4 right-4 rounded-lg bg-black/40 p-2">
+
+            <div className="absolute bottom-4 right-4 rounded-lg bg-black/50 p-2">
               <Icon name={micOn ? "mic" : "micOff"} size={16} />
             </div>
           </div>
 
-          {/* Waiting for participant */}
+          {/* Remote participant placeholder */}
           <div className="relative flex min-h-[250px] flex-col items-center justify-center overflow-hidden rounded-2xl border border-dashed border-white/15 bg-[#111723] px-6 text-center">
             <div className="mb-5 flex h-16 w-16 items-center justify-center rounded-2xl border border-white/10 bg-white/5 text-slate-300">
               <Icon name="users" size={28} />
             </div>
+
             <h3 className="text-lg font-medium">Waiting for others</h3>
+
             <p className="mt-2 max-w-xs text-sm leading-6 text-slate-400">
               Share the meeting code to invite someone into your ConnectSphere room.
             </p>
+
             <button
+              type="button"
               onClick={copyMeetingCode}
               className="mt-5 rounded-xl bg-indigo-500/15 px-4 py-2.5 text-sm font-medium text-indigo-300 transition hover:bg-indigo-500/25"
             >
@@ -189,7 +216,15 @@ function MeetingRoom() {
           </div>
         </section>
 
-        {/* Meeting controls */}
+        {error && (
+          <p
+            role="alert"
+            className="rounded-xl border border-red-400/20 bg-red-500/10 px-4 py-3 text-center text-sm text-red-300"
+          >
+            {error}
+          </p>
+        )}
+
         <section className="flex flex-col items-center justify-between gap-5 rounded-2xl border border-white/10 bg-[#111723] px-4 py-5 sm:flex-row sm:px-6">
           <div className="hidden sm:block">
             <p className="text-sm font-medium">Meeting controls</p>
@@ -199,41 +234,52 @@ function MeetingRoom() {
           </div>
 
           <div className="flex flex-wrap items-center justify-center gap-3">
+            {/* Microphone */}
             <button
-              onClick={() => setMicOn((previous) => !previous)}
+              type="button"
+              onClick={micOn ? stopMicrophone : startMicrophone}
               aria-pressed={micOn}
+              aria-label={micOn ? "Turn microphone off" : "Turn microphone on"}
+              title={micOn ? "Turn microphone off" : "Turn microphone on"}
               className={`flex h-12 w-12 items-center justify-center rounded-2xl border transition ${
                 micOn
                   ? "border-white/10 bg-white/5 hover:bg-white/10"
                   : "border-red-400/30 bg-red-500/15 text-red-300"
               }`}
-              title={micOn ? "Turn microphone off" : "Turn microphone on"}
             >
               <Icon name={micOn ? "mic" : "micOff"} />
             </button>
 
+            {/* Camera */}
             <button
-              onClick={() => setCameraOn((previous) => !previous)}
+              type="button"
+              onClick={cameraOn ? stopCamera : startCamera}
               aria-pressed={cameraOn}
+              aria-label={cameraOn ? "Turn camera off" : "Turn camera on"}
+              title={cameraOn ? "Turn camera off" : "Turn camera on"}
               className={`flex h-12 w-12 items-center justify-center rounded-2xl border transition ${
                 cameraOn
                   ? "border-white/10 bg-white/5 hover:bg-white/10"
                   : "border-red-400/30 bg-red-500/15 text-red-300"
               }`}
-              title={cameraOn ? "Turn camera off" : "Turn camera on"}
             >
               <Icon name={cameraOn ? "camera" : "cameraOff"} />
             </button>
 
+            {/* Screen sharing - upcoming feature */}
             <button
+              type="button"
               disabled
               title="Screen sharing will be added later"
+              aria-label="Screen sharing coming soon"
               className="flex h-12 w-12 cursor-not-allowed items-center justify-center rounded-2xl border border-white/10 bg-white/5 text-slate-500 opacity-60"
             >
               <Icon name="screen" />
             </button>
 
+            {/* Leave meeting */}
             <button
+              type="button"
               onClick={() => navigate("/dashboard")}
               className="flex h-12 items-center justify-center gap-2 rounded-2xl bg-red-500 px-5 text-sm font-semibold transition hover:bg-red-600"
             >
@@ -243,7 +289,7 @@ function MeetingRoom() {
           </div>
 
           <p className="text-xs text-slate-500 sm:hidden">
-            Camera and microphone are UI controls only for now.
+            Allow camera and microphone access when prompted.
           </p>
         </section>
 
