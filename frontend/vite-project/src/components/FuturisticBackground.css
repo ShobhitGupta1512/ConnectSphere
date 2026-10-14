@@ -1,0 +1,137 @@
+
+.futuristic-background {
+  position: relative;
+  isolation: isolate;
+  min-height: 100vh;
+  overflow: hidden;
+  background: #080812;
+  color: #ffffff;
+}
+
+.futuristic-grid {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+
+  background-image:
+    linear-gradient(
+      rgba(255, 255, 255, 0.035) 1px,
+      transparent 1px
+    ),
+    linear-gradient(
+      90deg,
+      rgba(255, 255, 255, 0.035) 1px,
+      transparent 1px
+    );
+
+  background-size: 48px 48px;
+
+  mask-image: linear-gradient(
+    to bottom,
+    black,
+    transparent 90%
+  );
+}
+
+.ambient-orb {
+  position: absolute;
+  z-index: -1;
+  border-radius: 50%;
+  pointer-events: none;
+  filter: blur(75px);
+  opacity: 0.65;
+  will-change: transform;
+}
+
+.orb-purple {
+  width: 420px;
+  height: 420px;
+  top: -120px;
+  left: -100px;
+  background: #7928ca;
+  animation: float-purple 12s ease-in-out infinite alternate;
+}
+
+.orb-blue {
+  width: 480px;
+  height: 480px;
+  top: 15%;
+  right: -180px;
+  background: #254edb;
+  animation: float-blue 15s ease-in-out infinite alternate;
+}
+
+.orb-cyan {
+  width: 320px;
+  height: 320px;
+  bottom: -160px;
+  left: 35%;
+  background: #087fbd;
+  opacity: 0.4;
+  animation: float-cyan 13s ease-in-out infinite alternate;
+}
+
+.futuristic-content {
+  position: relative;
+  z-index: 1;
+  min-height: 100vh;
+}
+
+@keyframes float-purple {
+  from {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+
+  to {
+    transform: translate3d(90px, 70px, 0) scale(1.15);
+  }
+}
+
+@keyframes float-blue {
+  from {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+
+  to {
+    transform: translate3d(-100px, 80px, 0) scale(0.9);
+  }
+}
+
+@keyframes float-cyan {
+  from {
+    transform: translate3d(0, 0, 0);
+  }
+
+  to {
+    transform: translate3d(60px, -80px, 0);
+  }
+}
+
+@media (max-width: 768px) {
+  .ambient-orb {
+    filter: blur(65px);
+    opacity: 0.5;
+  }
+
+  .orb-purple {
+    width: 280px;
+    height: 280px;
+  }
+
+  .orb-blue {
+    width: 300px;
+    height: 300px;
+  }
+
+  .orb-cyan {
+    width: 220px;
+    height: 220px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ambient-orb {
+    animation: none;
+  }
+}
