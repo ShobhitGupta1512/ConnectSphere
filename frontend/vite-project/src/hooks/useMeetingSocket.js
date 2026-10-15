@@ -1,3 +1,4 @@
+
 import { useEffect, useState } from "react";
 import { io } from "socket.io-client";
 
@@ -5,6 +6,7 @@ const SOCKET_URL =
   import.meta.env.VITE_SOCKET_URL || "http://localhost:8000";
 
 export default function useMeetingSocket(meetingCode) {
+  const [socket, setSocket] = useState(null);
   const [connected, setConnected] = useState(false);
   const [participants, setParticipants] = useState([]);
   const [socketError, setSocketError] = useState("");
@@ -12,17 +14,19 @@ export default function useMeetingSocket(meetingCode) {
   useEffect(() => {
     if (!meetingCode) return;
 
-    const socket = io(SOCKET_URL);
+    const currentSocket = io(SOCKET_URL);
 
     const handleConnect = () => {
+      setSocket(currentSocket);
       setConnected(true);
       setSocketError("");
-      socket.emit("join-call", meetingCode);
+      currentSocket.emit("join-call", meetingCode);
     };
 
     const handleDisconnect = () => {
       setConnected(false);
       setParticipants([]);
+      setSocket(null);
     };
 
     const handleConnectError = () => {
@@ -34,47 +38,51 @@ export default function useMeetingSocket(meetingCode) {
       setSocketError(payload?.message || "Unable to join this meeting.");
     };
 
-    const handleExistingParticipants = (participantIds) => {
-      setParticipants(participantIds);
+    const handleExistingParticipants = (ids) => {
+      setParticipants(Array.isArray(ids) ? ids : []);
     };
 
-    const handleUserJoined = (participantId) => {
+    const handleUserJoined = (id) => {
       setParticipants((current) =>
-        current.includes(participantId)
-          ? current
-          : [...current, participantId]
+        current.includes(id) ? current : [...current, id]
       );
     };
 
-    const handleUserLeft = (participantId, remainingParticipants) => {
+    const handleUserLeft = (id, remaining) => {
       setParticipants((current) =>
-        Array.isArray(remainingParticipants)
-          ? remainingParticipants.filter((id) => id !== socket.id)
-          : current.filter((id) => id !== participantId)
+        Array.isArray(remaining)
+          ? remaining.filter((participantId) => participantId !== currentSocket.id)
+          : current.filter((participantId) => participantId !== id)
       );
     };
 
-    socket.on("connect", handleConnect);
-    socket.on("disconnect", handleDisconnect);
-    socket.on("connect_error", handleConnectError);
-    socket.on("meeting-error", handleMeetingError);
-    socket.on("existing-participants", handleExistingParticipants);
-    socket.on("user-joined", handleUserJoined);
-    socket.on("user-left", handleUserLeft);
+    currentSocket.on("connect", handleConnect);
+    currentSocket.on("disconnect", handleDisconnect);
+    currentSocket.on("connect_error", handleConnectError);
+    currentSocket.on("meeting-error", handleMeetingError);
+    currentSocket.on("existing-participants", handleExistingParticipants);
+    currentSocket.on("user-joined", handleUserJoined);
+    currentSocket.on("user-left", handleUserLeft);
 
     return () => {
-      socket.emit("leave-call");
-      socket.disconnect();
+      currentSocket.emit("leave-call");
 
-      socket.off("connect", handleConnect);
-      socket.off("disconnect", handleDisconnect);
-      socket.off("connect_error", handleConnectError);
-      socket.off("meeting-error", handleMeetingError);
-      socket.off("existing-participants", handleExistingParticipants);
-      socket.off("user-joined", handleUserJoined);
-      socket.off("user-left", handleUserLeft);
+      currentSocket.off("connect", handleConnect);
+      currentSocket.off("disconnect", handleDisconnect);
+      currentSocket.off("connect_error", handleConnectError);
+      currentSocket.off("meeting-error", handleMeetingError);
+      currentSocket.off("existing-participants", handleExistingParticipants);
+      currentSocket.off("user-joined", handleUserJoined);
+      currentSocket.off("user-left", handleUserLeft);
+
+      currentSocket.disconnect();
     };
   }, [meetingCode]);
 
-  return { connected, participants, socketError };
+  return {
+    socket,
+    connected,
+    participants,
+    socketError,
+  };
 }

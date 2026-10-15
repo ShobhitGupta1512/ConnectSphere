@@ -1,7 +1,9 @@
+
 import { useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import useMediaStream from "../hooks/useMediaStream";
-// import useMeetingSocket from "../hooks/useMeetingSocket";
+import useMeetingSocket from "../hooks/useMeetingSocket";
+import useWebRTC from "../hooks/useWebRTC";
 
 function Icon({ name, size = 20 }) {
   const paths = {
@@ -68,13 +70,79 @@ function Icon({ name, size = 20 }) {
   );
 }
 
+function ParticipantTile({ stream, label, isLocal = false, micOn }) {
+  const videoRef = useRef(null);
+
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+
+    video.srcObject = stream || null;
+
+    if (stream) {
+      video.play().catch(() => {
+        // The browser may require a user interaction before playback.
+      });
+    }
+
+    return () => {
+      video.srcObject = null;
+    };
+  }, [stream]);
+
+  const videoOn = Boolean(
+    stream?.getVideoTracks().some((track) => track.readyState === "live" && track.enabled)
+  );
+
+  return (
+    <div className="relative flex min-h-[250px] items-center justify-center overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-br from-indigo-950 via-[#151b30] to-[#101522]">
+      {videoOn ? (
+        <video
+          ref={videoRef}
+          autoPlay
+          playsInline
+          muted={isLocal}
+          aria-label={`${label} video`}
+          className={`absolute inset-0 h-full w-full object-cover ${
+            isLocal ? "scale-x-[-1]" : ""
+          }`}
+        />
+      ) : (
+        <div className="flex flex-col items-center gap-3 text-center">
+          <div className="flex h-20 w-20 items-center justify-center rounded-full bg-indigo-500/20 text-2xl font-semibold text-indigo-200 ring-1 ring-indigo-300/30">
+            {label.charAt(0).toUpperCase()}
+          </div>
+          <p className="text-sm text-slate-300">
+            {isLocal ? "Camera is turned off" : "Waiting for video..."}
+          </p>
+        </div>
+      )}
+
+      <div className="absolute left-4 top-4 max-w-[75%] truncate rounded-lg border border-white/10 bg-black/60 px-3 py-1.5 text-xs text-white">
+        {label}
+        {isLocal ? " (You)" : ""}
+      </div>
+
+      <div className="absolute bottom-4 right-4 rounded-lg bg-black/60 p-2 text-white">
+        <Icon
+          name={isLocal ? (micOn ? "mic" : "micOff") : "users"}
+          size={16}
+        />
+      </div>
+    </div>
+  );
+}
+
 function MeetingRoom() {
   const { meetingCode } = useParams();
-  
   const navigate = useNavigate();
-  const videoRef = useRef(null);
-  
-    
+
+  const {
+    socket,
+    connected,
+    participants,
+    socketError,
+  } = useMeetingSocket(meetingCode);
 
   const {
     stream,
@@ -87,13 +155,13 @@ function MeetingRoom() {
     stopMicrophone,
   } = useMediaStream();
 
-  const [copied, setCopied] = useState(false);
+  const { remoteStreams } = useWebRTC({
+    socket,
+    localStream: stream,
+    participants,
+  });
 
-  useEffect(() => {
-    if (videoRef.current) {
-      videoRef.current.srcObject = stream;
-    }
-  }, [stream]);
+  const [copied, setCopied] = useState(false);
 
   const copyMeetingCode = async () => {
     try {
@@ -104,6 +172,16 @@ function MeetingRoom() {
       setCopied(false);
     }
   };
+
+  const leaveMeeting = () => {
+    stopCamera();
+    stopMicrophone();
+    navigate("/dashboard");
+  };
+
+  const remoteParticipantIds = [
+    ...new Set([...participants, ...Object.keys(remoteStreams)]),
+  ];
 
   return (
     <div className="min-h-screen bg-[#090d16] text-white">
@@ -122,9 +200,15 @@ function MeetingRoom() {
         </div>
 
         <div className="flex items-center gap-3">
-          <div className="hidden items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-2 sm:flex">
-            <span className="h-2 w-2 rounded-full bg-emerald-400" />
-            <span className="text-xs text-slate-300">Meeting ready</span>
+          <div className="flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-2">
+            <span
+              className={`h-2 w-2 rounded-full ${
+                connected ? "bg-emerald-400" : "bg-amber-400"
+              }`}
+            />
+            <span className="text-xs text-slate-300">
+              {connected ? "Connected" : "Connecting..."}
+            </span>
           </div>
 
           <button
@@ -146,7 +230,7 @@ function MeetingRoom() {
               Welcome to the meeting
             </h2>
             <p className="mt-2 text-sm text-slate-400">
-              Share your code with others to invite them.
+              Share your meeting code to invite others.
             </p>
           </div>
 
@@ -158,63 +242,52 @@ function MeetingRoom() {
           </div>
         </section>
 
-        <section className="grid min-h-[360px] grid-cols-1 gap-4 sm:grid-cols-2">
-          {/* Local participant */}
-          <div className="relative flex min-h-[250px] items-center justify-center overflow-hidden rounded-2xl border border-indigo-400/20 bg-gradient-to-br from-indigo-950 via-[#151b30] to-[#101522]">
-            {cameraOn ? (
-              <video
-                ref={videoRef}
-                autoPlay
-                muted
-                playsInline
-                aria-label="Your camera preview"
-                className="absolute inset-0 h-full w-full object-cover"
-              />
-            ) : (
-              <div className="flex flex-col items-center gap-4 text-center">
-                <div className="flex h-24 w-24 items-center justify-center rounded-full bg-indigo-500/20 text-3xl font-semibold text-indigo-200 ring-1 ring-indigo-300/30">
-                  Y
-                </div>
+        <section className="grid min-h-[360px] grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <ParticipantTile
+            stream={stream}
+            label="You"
+            isLocal
+            micOn={micOn}
+          />
 
-                <div>
-                  <p className="font-medium">You</p>
-                  <p className="mt-1 text-xs text-slate-400">
-                    Camera is turned off
-                  </p>
-                </div>
+          {remoteParticipantIds.map((participantId) => (
+            <ParticipantTile
+              key={participantId}
+              stream={remoteStreams[participantId] || null}
+              label={`Participant ${participantId.slice(0, 6)}`}
+            />
+          ))}
+
+          {remoteParticipantIds.length === 0 && (
+            <div className="flex min-h-[250px] flex-col items-center justify-center rounded-2xl border border-dashed border-white/15 bg-[#111723] px-6 text-center">
+              <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-2xl border border-white/10 bg-white/5 text-slate-300">
+                <Icon name="users" size={28} />
               </div>
-            )}
-
-            <div className="absolute left-4 top-4 rounded-lg border border-white/10 bg-black/50 px-3 py-1.5 text-xs text-slate-200">
-              You
+              <h3 className="text-lg font-medium">Waiting for others</h3>
+              <p className="mt-2 max-w-xs text-sm leading-6 text-slate-400">
+                Share the meeting code to invite people to your ConnectSphere room.
+              </p>
+              <button
+                type="button"
+                onClick={copyMeetingCode}
+                className="mt-5 rounded-xl bg-indigo-500/15 px-4 py-2.5 text-sm font-medium text-indigo-300 transition hover:bg-indigo-500/25"
+              >
+                {copied ? "Meeting code copied" : "Invite participants"}
+              </button>
             </div>
-
-            <div className="absolute bottom-4 right-4 rounded-lg bg-black/50 p-2">
-              <Icon name={micOn ? "mic" : "micOff"} size={16} />
-            </div>
-          </div>
-
-          {/* Remote participant placeholder */}
-          <div className="relative flex min-h-[250px] flex-col items-center justify-center overflow-hidden rounded-2xl border border-dashed border-white/15 bg-[#111723] px-6 text-center">
-            <div className="mb-5 flex h-16 w-16 items-center justify-center rounded-2xl border border-white/10 bg-white/5 text-slate-300">
-              <Icon name="users" size={28} />
-            </div>
-
-            <h3 className="text-lg font-medium">Waiting for others</h3>
-
-            <p className="mt-2 max-w-xs text-sm leading-6 text-slate-400">
-              Share the meeting code to invite someone into your ConnectSphere room.
-            </p>
-
-            <button
-              type="button"
-              onClick={copyMeetingCode}
-              className="mt-5 rounded-xl bg-indigo-500/15 px-4 py-2.5 text-sm font-medium text-indigo-300 transition hover:bg-indigo-500/25"
-            >
-              {copied ? "Meeting code copied" : "Invite participants"}
-            </button>
-          </div>
+          )}
         </section>
+
+        <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-slate-400">
+          <span>
+            {remoteParticipantIds.length} other participant
+            {remoteParticipantIds.length === 1 ? "" : "s"}
+          </span>
+          <span>
+            {Object.keys(remoteStreams).length} media connection
+            {Object.keys(remoteStreams).length === 1 ? "" : "s"} active
+          </span>
+        </div>
 
         {error && (
           <p
@@ -225,21 +298,28 @@ function MeetingRoom() {
           </p>
         )}
 
+        {socketError && (
+          <p
+            role="alert"
+            className="rounded-xl border border-red-400/20 bg-red-500/10 px-4 py-3 text-center text-sm text-red-300"
+          >
+            {socketError}
+          </p>
+        )}
+
         <section className="flex flex-col items-center justify-between gap-5 rounded-2xl border border-white/10 bg-[#111723] px-4 py-5 sm:flex-row sm:px-6">
           <div className="hidden sm:block">
             <p className="text-sm font-medium">Meeting controls</p>
             <p className="mt-1 text-xs text-slate-400">
-              Manage your devices
+              Manage your camera and microphone
             </p>
           </div>
 
           <div className="flex flex-wrap items-center justify-center gap-3">
-            {/* Microphone */}
             <button
               type="button"
               onClick={micOn ? stopMicrophone : startMicrophone}
               aria-pressed={micOn}
-              aria-label={micOn ? "Turn microphone off" : "Turn microphone on"}
               title={micOn ? "Turn microphone off" : "Turn microphone on"}
               className={`flex h-12 w-12 items-center justify-center rounded-2xl border transition ${
                 micOn
@@ -250,12 +330,10 @@ function MeetingRoom() {
               <Icon name={micOn ? "mic" : "micOff"} />
             </button>
 
-            {/* Camera */}
             <button
               type="button"
               onClick={cameraOn ? stopCamera : startCamera}
               aria-pressed={cameraOn}
-              aria-label={cameraOn ? "Turn camera off" : "Turn camera on"}
               title={cameraOn ? "Turn camera off" : "Turn camera on"}
               className={`flex h-12 w-12 items-center justify-center rounded-2xl border transition ${
                 cameraOn
@@ -266,7 +344,6 @@ function MeetingRoom() {
               <Icon name={cameraOn ? "camera" : "cameraOff"} />
             </button>
 
-            {/* Screen sharing - upcoming feature */}
             <button
               type="button"
               disabled
@@ -277,10 +354,9 @@ function MeetingRoom() {
               <Icon name="screen" />
             </button>
 
-            {/* Leave meeting */}
             <button
               type="button"
-              onClick={() => navigate("/dashboard")}
+              onClick={leaveMeeting}
               className="flex h-12 items-center justify-center gap-2 rounded-2xl bg-red-500 px-5 text-sm font-semibold transition hover:bg-red-600"
             >
               <Icon name="phone" size={18} />
