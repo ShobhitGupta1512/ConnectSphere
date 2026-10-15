@@ -14,8 +14,13 @@ media connections, and Socket.IO signaling.
 
 **Developer:** Shobhit Kumar\
 **Portfolio:** [shobhitdev.online](https://www.shobhitdev.online/)\
+<<<<<<< HEAD
 **Repository:** [ConnectSphere](https://github.com/ShobhitGupta1512/ConnectSphere/)\
 **Live demo:** [live_Demo](https://connect-sphere-iota-ten.vercel.app/)
+=======
+**Repository:** [Add your verified GitHub repository URL\](https://github.com/ShobhitGupta1512/ConnectSphere)
+**Live demo:** Add your deployed application URL
+>>>>>>> 49b5f54 (add reposiory url in README.md)
 :::
 
 ------------------------------------------------------------------------

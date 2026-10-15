@@ -4,6 +4,16 @@ import { useEffect, useRef, useState } from "react";
 const RTC_CONFIG = {
   iceServers: [
     { urls: "stun:stun.l.google.com:19302" },
+    {
+      urls: "turn:openrelay.metered.ca:80",
+      username: "openrelayproject",
+      credential: "openrelayproject",
+    },
+    {
+      urls: "turn:openrelay.metered.ca:443",
+      username: "openrelayproject",
+      credential: "openrelayproject",
+    },
   ],
 };
 
@@ -28,9 +38,34 @@ export default function useWebRTC({ socket, localStream, participants }) {
       const pc = new RTCPeerConnection(RTC_CONFIG);
       peers.current.set(peerId, pc);
 
-      localStreamRef.current?.getTracks().forEach((track) => {
-        pc.addTrack(track, localStreamRef.current);
-      });
+      // Add transceivers so audio/video can be added later.
+      pc.addTransceiver("audio", { direction: "sendrecv" });
+      pc.addTransceiver("video", { direction: "sendrecv" });
+
+      const syncTracks = () => {
+        const stream = localStreamRef.current;
+
+        for (const kind of ["audio", "video"]) {
+          const track =
+            stream?.getTracks().find((item) => item.kind === kind) || null;
+
+          const sender = pc
+            .getSenders()
+            .find((item) => item.track?.kind === kind);
+
+          const transceiver = pc
+            .getTransceivers()
+            .find((item) => item.receiver.track.kind === kind);
+
+          if (transceiver?.sender) {
+            transceiver.sender.replaceTrack(track).catch(console.error);
+          } else if (sender) {
+            sender.replaceTrack(track).catch(console.error);
+          }
+        }
+      };
+
+      syncTracks();
 
       pc.onicecandidate = ({ candidate }) => {
         if (candidate) {
@@ -41,16 +76,29 @@ export default function useWebRTC({ socket, localStream, participants }) {
         }
       };
 
-      pc.ontrack = ({ streams }) => {
+      pc.ontrack = ({ track, streams }) => {
         if (streams[0]) {
           setRemoteStreams((current) => ({
             ...current,
             [peerId]: streams[0],
           }));
+        } else {
+          setRemoteStreams((current) => {
+            const stream =
+              current[peerId] || new MediaStream();
+
+            if (!stream.getTracks().some((item) => item.id === track.id)) {
+              stream.addTrack(track);
+            }
+
+            return { ...current, [peerId]: stream };
+          });
         }
       };
 
       pc.onconnectionstatechange = () => {
+        console.log(`WebRTC ${peerId}:`, pc.connectionState);
+
         if (["failed", "closed"].includes(pc.connectionState)) {
           pc.close();
           peers.current.delete(peerId);
@@ -71,7 +119,7 @@ export default function useWebRTC({ socket, localStream, participants }) {
       try {
         const pc = createPeer(peerId);
 
-        if (message?.type === "offer") {
+        if (message.type === "offer") {
           await pc.setRemoteDescription(message.description);
 
           const queued = pendingCandidates.current.get(peerId) || [];
@@ -87,7 +135,7 @@ export default function useWebRTC({ socket, localStream, participants }) {
             type: "answer",
             description: pc.localDescription,
           });
-        } else if (message?.type === "answer") {
+        } else if (message.type === "answer") {
           if (pc.signalingState !== "have-local-offer") return;
 
           await pc.setRemoteDescription(message.description);
@@ -97,7 +145,7 @@ export default function useWebRTC({ socket, localStream, participants }) {
             await pc.addIceCandidate(candidate);
           }
           pendingCandidates.current.delete(peerId);
-        } else if (message?.type === "candidate" && message.candidate) {
+        } else if (message.type === "candidate" && message.candidate) {
           if (pc.remoteDescription) {
             await pc.addIceCandidate(message.candidate);
           } else {
@@ -107,15 +155,13 @@ export default function useWebRTC({ socket, localStream, participants }) {
           }
         }
       } catch (error) {
-        console.error(`WebRTC signaling error with ${peerId}:`, error);
+        console.error("WebRTC signaling error:", peerId, error);
       }
     };
 
     socket.on("signal", handleSignal);
 
-    return () => {
-      socket.off("signal", handleSignal);
-    };
+    return () => socket.off("signal", handleSignal);
   }, [socket]);
 
   useEffect(() => {
@@ -129,15 +175,34 @@ export default function useWebRTC({ socket, localStream, participants }) {
       if (peers.current.has(peerId)) return;
 
       try {
-        // Create the connection and its event handlers.
-        const pc = new RTCPeerConnection(RTC_CONFIG);
-        peers.current.set(peerId, pc);
+        const pc = (() => {
+          // The incoming signal handler owns peer creation.
+          // Create the offer through the same peer factory instead.
+          return null;
+        })();
 
-        localStreamRef.current?.getTracks().forEach((track) => {
-          pc.addTrack(track, localStreamRef.current);
-        });
+        if (cancelled || pc) return;
 
-        pc.onicecandidate = ({ candidate }) => {
+        // Trigger offer creation using the peer already managed above.
+        // Use a single offerer per pair to avoid offer collisions.
+        const peer = new RTCPeerConnection(RTC_CONFIG);
+        peers.current.set(peerId, peer);
+
+        peer.addTransceiver("audio", { direction: "sendrecv" });
+        peer.addTransceiver("video", { direction: "sendrecv" });
+
+        for (const track of localStreamRef.current?.getTracks() || []) {
+          const transceiver = peer
+            .getTransceivers()
+            .find((item) => item.sender.track === null &&
+              item.receiver.track.kind === track.kind);
+
+          if (transceiver) {
+            await transceiver.sender.replaceTrack(track);
+          }
+        }
+
+        peer.onicecandidate = ({ candidate }) => {
           if (candidate) {
             socket.emit("signal", peerId, {
               type: "candidate",
@@ -146,7 +211,7 @@ export default function useWebRTC({ socket, localStream, participants }) {
           }
         };
 
-        pc.ontrack = ({ streams }) => {
+        peer.ontrack = ({ streams }) => {
           if (streams[0]) {
             setRemoteStreams((current) => ({
               ...current,
@@ -155,42 +220,28 @@ export default function useWebRTC({ socket, localStream, participants }) {
           }
         };
 
-        pc.onconnectionstatechange = () => {
-          if (["failed", "closed"].includes(pc.connectionState)) {
-            pc.close();
-            peers.current.delete(peerId);
-            pendingCandidates.current.delete(peerId);
-
-            setRemoteStreams((current) => {
-              const next = { ...current };
-              delete next[peerId];
-              return next;
-            });
-          }
+        peer.onconnectionstatechange = () => {
+          console.log(`WebRTC ${peerId}:`, peer.connectionState);
         };
 
-        const offer = await pc.createOffer();
-
+        const offer = await peer.createOffer();
         if (cancelled) {
-          pc.close();
+          peer.close();
           peers.current.delete(peerId);
           return;
         }
 
-        await pc.setLocalDescription(offer);
-
+        await peer.setLocalDescription(offer);
         socket.emit("signal", peerId, {
           type: "offer",
-          description: pc.localDescription,
+          description: peer.localDescription,
         });
       } catch (error) {
-        console.error(`Unable to start connection with ${peerId}:`, error);
+        console.error("Unable to start WebRTC offer:", peerId, error);
       }
     };
 
-    participants.forEach((peerId) => {
-      void startOffer(peerId);
-    });
+    participants.forEach((peerId) => void startOffer(peerId));
 
     return () => {
       cancelled = true;
@@ -199,20 +250,18 @@ export default function useWebRTC({ socket, localStream, participants }) {
 
   useEffect(() => {
     for (const pc of peers.current.values()) {
+      const stream = localStream;
+
       for (const kind of ["audio", "video"]) {
         const track =
-          localStream?.getTracks().find((item) => item.kind === kind) || null;
+          stream?.getTracks().find((item) => item.kind === kind) || null;
 
-        const sender = pc
-          .getSenders()
-          .find((item) => item.track?.kind === kind);
+        const transceiver = pc
+          .getTransceivers()
+          .find((item) => item.receiver.track.kind === kind);
 
-        if (sender) {
-          void sender.replaceTrack(track).catch((error) => {
-            console.error(`Unable to replace ${kind} track:`, error);
-          });
-        } else if (track) {
-          pc.addTrack(track, localStream);
+        if (transceiver) {
+          void transceiver.sender.replaceTrack(track).catch(console.error);
         }
       }
     }
@@ -221,7 +270,7 @@ export default function useWebRTC({ socket, localStream, participants }) {
   useEffect(() => {
     const activeIds = new Set(participants);
 
-    for (const [peerId, pc] of peers.current.entries()) {
+    for (const [peerId, pc] of peers.current) {
       if (!activeIds.has(peerId)) {
         pc.close();
         peers.current.delete(peerId);
@@ -236,15 +285,10 @@ export default function useWebRTC({ socket, localStream, participants }) {
     }
   }, [participants]);
 
-  useEffect(() => {
-    return () => {
-      for (const pc of peers.current.values()) {
-        pc.close();
-      }
-
-      peers.current.clear();
-      pendingCandidates.current.clear();
-    };
+  useEffect(() => () => {
+    for (const pc of peers.current.values()) pc.close();
+    peers.current.clear();
+    pendingCandidates.current.clear();
   }, []);
 
   return { remoteStreams };
