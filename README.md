@@ -14,7 +14,7 @@ media connections, and Socket.IO signaling.
 
 **Developer:** Shobhit Kumar\
 **Portfolio:** [shobhitdev.online](https://www.shobhitdev.online/)\
-**Repository:** Add your verified GitHub repository URL\
+**Repository:** [Add your verified GitHub repository URL\](https://github.com/ShobhitGupta1512/ConnectSphere/)
 **Live demo:** Add your deployed application URL
 :::
 
