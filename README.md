@@ -25,11 +25,11 @@ media connections, and Socket.IO signaling.
 
 ### Meeting Workspace
 
-![ConnectSphere meeting room](./meeting-room.png)
+![ConnectSphere meeting room](productionPSS/meeting-room.png)
 
 ### Dashboard
 
-![ConnectSphere dashboard](./dashboard.png)
+![ConnectSphere dashboard](productionPSS/dashboard.png)
 ------------------------------------------------------------------------
 
 ## Overview
