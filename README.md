@@ -20,18 +20,16 @@ media connections, and Socket.IO signaling.
 
 ------------------------------------------------------------------------
 
+
 ## Product Preview
 
-### Meeting workspace
+### Meeting Workspace
 
-![ConnectSphere meeting room showing local and remote participant tiles
-and meeting controls](docs/screenshots/meeting-room.png)
+![ConnectSphere meeting room](./meeting-room.png)
 
 ### Dashboard
 
-![ConnectSphere dashboard with create-meeting and join-meeting
-options](docs/screenshots/dashboard.png)
-
+![ConnectSphere dashboard](./dashboard.png)
 ------------------------------------------------------------------------
 
 ## Overview
