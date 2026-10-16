@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { io } from "socket.io-client";
 
 const SOCKET_URL =
-  import.meta.env.VITE_SOCKET_URL || "http://localhost:8000";
+  import.meta.env.VITE_SOCKET_URL || "https://connectsphere-backend-u45y.onrender.com";
 
 export default function useMeetingSocket(meetingCode) {
   const [socket, setSocket] = useState(null);
