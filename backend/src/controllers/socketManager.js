@@ -34,16 +34,22 @@ function isValidSignal(message) {
   }
 }
 
+
 export const connectToServer = (server) => {
-  const allowedOrigin = process.env.FRONTEND_URL || "http://localhost:5173";
+  const allowedOrigin =
+    process.env.FRONTEND_URL || "http://localhost:5173";
 
   const io = new Server(server, {
     cors: {
       origin: allowedOrigin,
       methods: ["GET", "POST"],
+      credentials: true,
     },
     maxHttpBufferSize: 1e6,
   });
+
+  // Keep your existing connection and event handlers below this line.
+
 
   // Find the rooms a socket has joined through this meeting system.
   const getSocketRooms = (socketId) => {
